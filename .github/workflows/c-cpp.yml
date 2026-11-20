@@ -4,7 +4,77 @@
 #
 #jobs:
 #  format-check:
-#    runs-on: ubuntu-latest
+#    runs-on: ubuntu-
+name: FIFA15Mobile Android Build
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      JVM_OPTS: -Xmx6G
+      VCPKG_ROOT: /usr/local/share/vcpkg
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Setup ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+
+      - name: Restore Gradle Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/
+            ~/.ccache
+            ${{ env.VCPKG_ROOT }}/installed
+            ${{ env.VCPKG_ROOT }}/packages
+          key: ${{ runner.os }}-fifa15-gradle-${{ hashFiles('**/build.gradle') }}
+          restore-keys: |
+            ${{ runner.os }}-fifa15-gradle-
+
+      - name: Setup build environment
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build
+          vcpkg install \
+            boost-system:arm64-android \
+            boost-filesystem:arm64-android \
+            boost-program-options:arm64-android \
+            boost-icl:arm64-android \
+            boost-variant:arm64-android \
+            openssl:arm64-android \
+            zlib:arm64-android
+
+      - name: Prepare Android assets
+        run: |
+          mkdir -p android/assets
+          cp -r data android/assets/
+          cp -r lang android/assets/
+          cp -r vita3k/shaders-builtin android/assets/
+
+      - name: Build FIFA15Mobile APK
+        run: |
+          export JAVA_HOME=$JAVA_HOME_17_X64
+          ./gradlew --stacktrace \
+            --build-cache \
+            --parallel \
+            assembleReldebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: FIFA15Mobile-ARM64-Reldebug
+          path: android/build/outputs/apk/reldebug/*.apk
+          if-no-files-found: error
+          
 #    steps:
 #      - name: Checkout
 #        uses: actions/checkout@v4
